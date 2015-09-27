@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Machinelearningmodel by AndroidWargames</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Machinelearningmodel</h1>
+      <h2 class="project-tagline"></h2>
+      <a href="https://github.com/AndroidWargames/MachineLearningModel" class="btn">View on GitHub</a>
+      <a href="https://github.com/AndroidWargames/MachineLearningModel/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/AndroidWargames/MachineLearningModel/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <p></p>
+
+<p></p>
+
+<p>
+
+</p>
+
+<p></p>
+
+<p></p>
+
+<p></p>Predicting Errors in Barbell Lifts
+
+
+
+<p>
+</p>
+
+
+
+
+
+
+
+code{white-space: pre;}
+
+<p></p>
+
+
+
+
+  pre:not([class]) {
+    background-color: white;
+  }
+
+
+
+
+<p></p>
+
+<p></p>
+
+
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img { 
+  max-width:100%; 
+  height: auto; 
+}
+
+
+<div>
+
+
+<div id="header">
+<h1>
+<a id="predicting-errors-in-barbell-lifts" class="anchor" href="#predicting-errors-in-barbell-lifts" aria-hidden="true"><span class="octicon octicon-link"></span></a>Predicting Errors in Barbell Lifts</h1>
+<h4>
+<a id="andrew-wagner" class="anchor" href="#andrew-wagner" aria-hidden="true"><span class="octicon octicon-link"></span></a><em>Andrew Wagner</em>
+</h4>
+<h4>
+<a id="september-27-2015" class="anchor" href="#september-27-2015" aria-hidden="true"><span class="octicon octicon-link"></span></a><em>September 27, 2015</em>
+</h4>
+</div>
+
+<div id="summary">
+<h1>
+<a id="summary" class="anchor" href="#summary" aria-hidden="true"><span class="octicon octicon-link"></span></a>Summary</h1>
+<p>The purpose of this document is to outline the steps taken in generating a prediction algorithm that can accurately assess and detect exercise errors given data gathered from wearable measurement devices. While a large amount of the statistical weight is lifted by R (thanks to some very well-designed packages), exploratory analysis into the expansive data set is essential to ensure that the final model relies solely on the relevant data and provides intelligible results.</p>
+</div>
+
+<div id="process">
+<h1>
+<a id="process" class="anchor" href="#process" aria-hidden="true"><span class="octicon octicon-link"></span></a>Process</h1>
+<p>Initial analysis of the output must first be predicated on the method of prediction that will ultimately be used, and must be tailored to idiosyncratic data. In this case, data was measured at specific time intervals and recorded along with timestamp data, activity code, and the user that performed the activities. Additionally, there are a series of measurements that represent aggregations of data over some span of time (though not <em>necessarily</em> specific to a single activity) and, though they could be valuable, were neither recorded for every observation nor were reliably filled with quantitative data. As an example, these data were measurements such as averages, standard deviations, local maximums, etc.</p>
+<p>Since the test set data did not consistently have these data aggregations as observations, these variables were not included in the model. The timestamp data was also excepted from the model mainly because different activities were simply performed at different times, and there is no reason to believe that the time or date was controlled for across exercises when these data were gathered. Moreover, despite the fact that sequential actions may have some relationship to one another within an exercise, the atomic nature of the test set observations dictate that temporal analysis would not be relevant.</p>
+<p>While username data is included in the test set, it was also excluded from this model. One could assume that these different users have different quirks that give rise to specific indicators in the data, it seems more reasonable to assume that this prediction algorithm should be intended to be accurate irrespective of the user. (The model was re-run including these data and performance was only marginally improved.)</p>
+<p>R’s read.csv function interpreted most columns as factor variables, so after removing all of the unwanted columns in the dataset they were converted to numeric values. This had the desired side-effect of converted any non-numeric values to NA.</p>
+<p>Given that the model is predicting an outcome as a classification and not a quantitative variable, the random forest method was selected for analysis. Principal component signal extraction was used for preprocessing, centering and scaling the data. The random forest model resampled 25 times (or bootstraps). The data were partitioned at a rate of 75% for training and cross validation. While processing time was lengthy, this model proved effective on the first run through with an accuracy of 96.52% and Kappa value of 0.96, which, when understanding the complexity and number of factors involved, seems to be satisfactory as an output. The out of sample error was 97.7%, when tested against the data set aside for validation</p>
+</div>
+
+<div id="code">
+<h1>
+<a id="code" class="anchor" href="#code" aria-hidden="true"><span class="octicon octicon-link"></span></a>Code</h1>
+<div id="data-cleaning">
+<h3>
+<a id="data-cleaning" class="anchor" href="#data-cleaning" aria-hidden="true"><span class="octicon octicon-link"></span></a>Data Cleaning</h3>
+<pre><code>setwd("~/Coursera/MachineLearning")
+allData &lt;- read.csv("pml-training.csv")
+require(dplyr)
+require(ggplot2)
+require(caret)
+require(doMC)
+
+subData &lt;- tbl_df(allData) %&gt;%
+        dplyr::select(-contains("timestamp"),
+               -contains("kurtosis"),
+               -contains("skewness"),
+               -contains("max"),
+               -contains("min"),
+               -contains("var"),
+               -contains("stddev"),
+               -contains("amplitude"),
+               -contains("avg")) %&gt;%
+        dplyr::select(-X,-user_name,-new_window,-num_window)
+
+asNumeric &lt;- function(x) as.numeric(as.character(x))
+factorsNumeric &lt;- function(d){
+        modifyList(d, lapply(d[, sapply(d, is.factor)],asNumeric))
+}
+
+subData &lt;- cbind(subData$classe,factorsNumeric(subData))
+subData &lt;- subData[,-ncol(subData)]
+colnames(subData)[1] &lt;- "classe"
+
+registerDoMC(cores = 8)
+
+set.seed(321)
+trainfix &lt;- createDataPartition(y=subData$classe,p=.75,list=FALSE)
+trainer = subData[trainfix,]
+tester = subData[-trainfix,]
+
+rfmod &lt;- train(classe~., preProcess="pca",
+              method="rf", data=trainer, seeds = c(23,45,67,89,12,34,56,78))
+
+pred &lt;- predict(rfmod,tester)
+predtab &lt;- table(pred,tester$classe)
+
+rfmod
+
+miss &lt;- 0
+for(i in 1:5){
+        miss &lt;- miss + predtab[i,i]
+}
+oose &lt;- miss/sum(predtab)</code></pre>
+</div>
+
+<p></p>
+</div>
+
+<div id="figures">
+<h1>
+<a id="figures" class="anchor" href="#figures" aria-hidden="true"><span class="octicon octicon-link"></span></a>Figures</h1>
+<div id="cross-validation-table">
+<h3>
+<a id="cross-validation-table" class="anchor" href="#cross-validation-table" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cross Validation table</h3>
+<pre><code>##     
+## pred    A    B    C    D    E
+##    A 1391   23    1    0    0
+##    B    0  914   12    1    4
+##    C    2   12  830   33    8
+##    D    2    0   12  769    2
+##    E    0    0    0    1  887</code></pre>
+<p>This figure shows predicted values of the cross validation data vertically and the actual values horizontally. Fewer observations were misclassified as A than any other group, suggesting that this model generates more false positives than negatives.</p>
+</div>
+
+<div id="model-details">
+<h3>
+<a id="model-details" class="anchor" href="#model-details" aria-hidden="true"><span class="octicon octicon-link"></span></a>Model Details</h3>
+<pre><code>## Random Forest 
+## 
+## 14718 samples
+##    52 predictor
+##     5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## Pre-processing: principal component signal extraction, scaled, centered 
+## Resampling: Bootstrapped (25 reps) 
+## Summary of sample sizes: 14718, 14718, 14718, 14718, 14718, 14718, ... 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
+##    2    0.9652035  0.9559724  0.003234009  0.004091761
+##   27    0.9481881  0.9344479  0.006444717  0.008136878
+##   52    0.9482999  0.9345881  0.006023345  0.007601855
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 2.</code></pre>
+<pre><code>## 
+## Call:
+## "scrubed"
+## 
+## Created from 14718 samples and 52 variables
+## Pre-processing: principal component signal extraction, scaled, centered 
+## 
+## PCA needed 25 components to capture 95 percent of the variance</code></pre>
+<p>This is the R output outlining the details of the model.</p>
+</div>
+
+<div id="confusion-matrix">
+<h3>
+<a id="confusion-matrix" class="anchor" href="#confusion-matrix" aria-hidden="true"><span class="octicon octicon-link"></span></a>Confusion Matrix</h3>
+<pre><code>##      A    B    C    D    E class.error
+## A 4158   10   10    4    3 0.006451613
+## B   51 2763   26    2    6 0.029845506
+## C    4   39 2499   20    5 0.026490066
+## D    3    4   97 2303    5 0.045190713
+## E    1    5   17   16 2667 0.014412417</code></pre>
+<p>This is a confusion matrix for the final model.</p>
+</div>
+
+<p></p>
+</div>
+
+<p></p>
+</div>
+
+
+
+
+
+
+
+<p>
+</p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/AndroidWargames/MachineLearningModel">Machinelearningmodel</a> is maintained by <a href="https://github.com/AndroidWargames">AndroidWargames</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
